@@ -1,0 +1,5 @@
+# https://jelly-cookie.github.io/Trauma-Center-Quiz/
+User-agent: *
+Allow: /
+
+Sitemap: https://jelly-cookie.github.io/Trauma-Center-Quiz/sitemap.xml 
