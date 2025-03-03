@@ -155,6 +155,8 @@ const personalityTypes = {
 // 전역 변수
 let currentQuestion = 0;
 let userAnswers = [];
+let introPlayer = null; // 시작화면 YouTube 플레이어
+let resultPlayer = null; // 결과화면 YouTube 플레이어
 
 // DOM 요소 참조
 const introScreen = document.getElementById('intro');
@@ -171,6 +173,17 @@ function initializeQuiz() {
     currentQuestion = 0;
     userAnswers = [];
     updateProgressBar();
+
+    const introVideo = document.getElementById('intro-video');
+    if (introVideo) {
+        introPlayer = new YT.Player('intro-video', {
+            events: {
+                'onReady': (event) => {
+                    event.target.playVideo();
+                }
+            }
+        });
+    }
 }
 
 // 진행 상태 업데이트
@@ -189,6 +202,10 @@ function goToPreviousQuestion() {
 
 // 퀴즈 시작
 function startQuiz() {
+    if (introPlayer) {
+        introPlayer.destroy(); // 시작화면 플레이어 제거
+        introPlayer = null;
+    }
     introScreen.style.display = 'none';
     quizContainer.style.display = 'block';
     resultScreen.style.display = 'none';
@@ -300,20 +317,47 @@ function showResult() {
     const resultType = calculateResult();
     const personality = personalityTypes[resultType];
     
+    if (resultPlayer) {
+        resultPlayer.destroy(); // 이전 결과화면 플레이어 제거
+        resultPlayer = null;
+    }
+    
     quizContainer.style.display = 'none';
     resultScreen.style.display = 'block';
     
+    // 캐릭터별 영상 시작 시간 매핑
+    const characterTimes = {
+        'FIRE': 19, // 백강혁
+        'BOOK': 46, // 양재원
+        'MASK': 42, // 천장미
+        'STOP': 29  // 한유림
+    };
+    
     const resultHTML = `
-        <h2>🩸 당신의 성향은...</h2>
-        <h3>${personality.name} - ${personality.title}</h3>
-        <p class="quote">💉 "${personality.quote}"</p>
-        <ul>
-            ${personality.traits.map(trait => `<li>${trait}</li>`).join('')}
-        </ul>
-        <button onclick="restartQuiz()" class="restart-btn">
-            <span class="btn-text">다시 테스트하기</span>
-            <span class="btn-icon">↺</span>
-        </button>
+        <div class="result-content">
+            <h2>🩸 당신의 성향은...</h2>
+            <h3>${personality.name} - ${personality.title}</h3>
+            <div class="youtube-container">
+                <iframe 
+                    id="result-video"
+                    width="560" 
+                    height="315" 
+                    src="https://www.youtube.com/embed/GsHTag-UMvY?si=nsa5_bTtWwvWuewu&start=${characterTimes[resultType]}&autoplay=1" 
+                    title="중증외상센터 예고편" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+            <p class="quote">💉 "${personality.quote}"</p>
+            <ul>
+                ${personality.traits.map(trait => `<li>${trait}</li>`).join('')}
+            </ul>
+            <button onclick="restartQuiz()" class="restart-btn">
+                <span class="btn-text">다시 테스트하기</span>
+                <span class="btn-icon">↺</span>
+            </button>
+        </div>
     `;
     
     resultScreen.innerHTML = resultHTML;
@@ -321,16 +365,107 @@ function showResult() {
 
 // 퀴즈 재시작
 function restartQuiz() {
+    if (resultPlayer) {
+        resultPlayer.destroy();
+        resultPlayer = null;
+    }
+
     resultScreen.style.display = 'none';
+
+    // intro 화면 표시 전에 기존 YouTube iframe 제거
+    const introVideoContainer = document.getElementById('intro-video');
+    if (introVideoContainer) {
+        introVideoContainer.remove();
+    }
+
+    // 새로운 iframe을 생성하여 intro에 추가
+    const newIframe = document.createElement('iframe');
+    newIframe.id = 'intro-video';
+    newIframe.width = '560';
+    newIframe.height = '315';
+    newIframe.src = "https://www.youtube.com/embed/GsHTag-UMvY?si=nsa5_bTtWwvWuewu&mute=1&enablejsapi=1";
+    newIframe.title = "중증외상센터 예고편";
+    newIframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+    newIframe.allowFullscreen = true;
+
+    // 새 iframe을 intro에 추가
+    document.querySelector('.youtube-container').appendChild(newIframe);
+
     introScreen.style.display = 'block';
+
+    // 새로운 YouTube 플레이어 초기화
+    setTimeout(() => {
+        const introVideo = document.getElementById('intro-video');
+        if (introVideo) {
+            introPlayer = new YT.Player('intro-video', {
+                events: {
+                    'onReady': (event) => {
+                        event.target.playVideo();
+                    }
+                }
+            });
+        }
+    }, 500);
+
     initializeQuiz();
 }
+
 
 // 문서가 로드되면 초기화
 document.addEventListener('DOMContentLoaded', () => {
     initializeQuiz();
-    startButton.addEventListener('click', startQuiz);
+    
+    // YouTube API 스크립트 로드
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    // 시작 버튼 이벤트 리스너
+    startButton.addEventListener('click', () => {
+        introPlayer.destroy(); // 시작화면 플레이어 제거
+        introPlayer = null;
+        startQuiz();
+    });
 });
+
+// YouTube API 준비 완료 시 호출되는 함수
+window.onYouTubeIframeAPIReady = function() {
+    // 시작화면 비디오 초기화
+    setTimeout(() => {
+        const introVideo = document.getElementById('intro-video');
+        if (introVideo && !introPlayer) {
+            introPlayer = new YT.Player('intro-video', {
+                events: {
+                    'onReady': (event) => {
+                        event.target.playVideo();
+                    }
+                }
+            });
+        }
+    }, 100);
+};
+
+// 결과화면 YouTube 플레이어 초기화를 위한 MutationObserver
+const resultObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+            const resultVideo = document.getElementById('result-video');
+            if (resultVideo && !resultPlayer) {
+                resultPlayer = new YT.Player('result-video', {
+                    events: {
+                        'onReady': (event) => {
+                            event.target.playVideo();
+                        }
+                    }
+                });
+            }
+        }
+    });
+});
+
+// 결과 화면 관찰 시작
+resultObserver.observe(resultScreen, { childList: true, subtree: true });
 
 // 캐릭터 정보
 const characters = {
